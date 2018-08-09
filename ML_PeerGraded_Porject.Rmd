@@ -1,0 +1,204 @@
+---
+title: "Practical Machine Learning"
+author: "Saurabh Thakur"
+date: "August 6, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+__Loading the libraries before hand.__
+``` {r load_lib, echo = TRUE}
+library(caret, quietly = TRUE)
+library(knitr, quietly = TRUE)
+library(rpart, quietly = TRUE)
+library(rpart.plot, quietly = TRUE)
+#library(rattle)
+library(randomForest, quietly = TRUE)
+library(corrplot, quietly = TRUE)
+```
+
+__Setting up the working directory.__
+```{r setwork dir, echo=TRUE}
+setwd("D:/R/assignments/machine learning/scripts")
+```
+
+__Set the urls for the data and the file names for the destination.__
+```{r urls, echo=TRUE}
+train_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+#
+train_file <- "pml-training.csv"
+test_file <- "pml-testing.csv" 
+```
+
+__Check if the file exists in the local drive, if not then download them from the links and once downloaded, then read the files to R.__
+```{r dnld_file, echo=TRUE}
+if(!file.exists(train_file)){
+  download.file(train_url, destfile = train_file)
+}
+training_data <- read.csv(train_file)
+#
+if(!file.exists(test_file)){
+  download.file(test_url, destfile = test_file)
+}
+test_data <- read.csv(test_file)
+```
+
+__Create the split set for creating the test set and the training set.__
+```{r pressure, echo=TRUE}
+inTrain <- createDataPartition(training_data$classe,
+                               p=0.7,
+                               list = FALSE)
+TrainSet <- training_data[inTrain,]
+TestSet <- training_data[-inTrain,]
+#
+dim(TrainSet)
+dim(TestSet)
+```
+
+##Data Clean up and Exploratory analysis.##
+```{r data_analysis, echo=TRUE}
+NZV <- nearZeroVar(TrainSet)
+TrainSet <- TrainSet[, -NZV]
+TestSet  <- TestSet[, -NZV]
+dim(TrainSet)
+dim(TestSet)
+# remove variables that are mostly NA
+mostlyNA    <- sapply(TrainSet, function(x) mean(is.na(x))) > 0.95
+TrainSet <- TrainSet[, mostlyNA==FALSE]
+TestSet  <- TestSet[, mostlyNA==FALSE]
+dim(TestSet)
+dim(TrainSet)
+#
+# remove identification only variables (columns 1 to 5)
+TrainSet <- TrainSet[, -(1:5)]
+TestSet  <- TestSet[, -(1:5)]
+dim(TrainSet)
+#
+#corelation analysis graph
+#
+corMatrix <- cor(TrainSet[, -54])
+corrplot(corMatrix, order = "FPC", method = "color", type = "lower", 
+         tl.cex = 0.8, tl.col = rgb(0, 0, 0))
+#
+```
+
+## Prediction Model Building
+
+Three popular methods will be applied to model the regressions (in the Train dataset) and the best one (with higher accuracy when applied to the Test dataset) will be used for the quiz predictions. 
+
+The methods are as described below.
+
+* Random Forests
+* Decision Tree and 
+* Generalized Boosted Model 
+
+A Confusion Matrix is plotted at the end of each analysis to better visualize the accuracy of the models.
+
+### __a. Random Forests__ ###
+
+```{r rand_forest, echo = TRUE}
+# model fit
+set.seed(301)
+controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+modFitRandForest <- train(classe ~ ., data=TrainSet, method="rf",
+                          trControl=controlRF)
+modFitRandForest$finalModel
+```
+
+
+Prediction on the test dataset.
+
+```{r pred_test, echo = TRUE}
+# prediction on Test dataset
+predictRandForest <- predict(modFitRandForest, newdata=TestSet)
+confMatRandForest <- confusionMatrix(predictRandForest, TestSet$classe)
+confMatRandForest
+```
+
+```{r plot_randfor, echo  =TRUE}
+# plot matrix results
+plot(confMatRandForest$table, col = confMatRandForest$byClass, 
+     main = paste("Random Forest - Accuracy =",
+                  round(confMatRandForest$overall['Accuracy'], 4)))
+```
+
+
+### __b. Decision Tree__ ###
+
+```{r decs_tree, echo = TRUE}
+# model fit
+set.seed(301)
+modFitDecTree <- rpart(classe ~ ., data=TrainSet, method="class")
+#fancyRpartPlot(modFitDecTree)
+rpart.plot(modFitDecTree)
+
+```
+
+
+```{r desc_pred, echo=TRUE}
+#prediction on the test data
+predictDecTree <- predict(modFitDecTree, newdata=TestSet, type="class")
+confMatDecTree <- confusionMatrix(predictDecTree, TestSet$classe)
+confMatDecTree
+```
+
+
+### Plot Matrix Results###
+
+```{r desc_plot, echo = TRUE}
+plot(confMatDecTree$table, col = confMatDecTree$byClass, 
+     main = paste("Decision Tree - Accuracy =",
+                  round(confMatDecTree$overall['Accuracy'], 4)))
+```
+
+
+###  __c. Generalized Boosted Model (GBM)__ ###
+
+```{r GBM_mod, echo = TRUE}
+# model fit
+set.seed(301)
+controlGBM <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
+modFitGBM  <- train(classe ~ ., data=TrainSet, method = "gbm",
+                    trControl = controlGBM, verbose = FALSE)
+modFitGBM$finalModel
+```
+
+### Confusion Matrix###
+``` {r gbm_pred, echo = TRUE}
+# prediction on Test dataset
+predictGBM <- predict(modFitGBM, newdata=TestSet)
+confMatGBM <- confusionMatrix(predictGBM, TestSet$classe)
+confMatGBM
+```
+
+### Plot GBM Results###
+```{r gbm_plot, echo = TRUE}
+# plot matrix results
+plot(confMatGBM$table, col = confMatGBM$byClass, 
+     main = paste("GBM - Accuracy =", 
+                  round(confMatGBM$overall['Accuracy'], 4)))
+```
+
+
+##Applying the selected Model to the Test Data##
+###The accuracy of the 3 regression modeling methods above are as follows###
+
+Prediction Model | Accuracy
+--------------|-------
+Random Forest | `r round(confMatRandForest$overall['Accuracy'], 4)` 
+Decision Tree | `r round(confMatDecTree$overall['Accuracy'], 4)`
+GBM           | `r round(confMatGBM$overall['Accuracy'], 4)`
+
+In that case, the __Random Forest model__ will be applied to predict the 20 quiz results __pml-testing.csv__ as shown below.
+
+
+```{r mod_pred, echo = TRUE}
+predictTEST <- predict(modFitRandForest, newdata=test_data)
+predictTEST
+```
+
+
