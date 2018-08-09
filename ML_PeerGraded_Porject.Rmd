@@ -60,6 +60,11 @@ dim(TestSet)
 ```
 
 ##Data Clean up and Exploratory analysis.##
+
+* Here we are removing the Near Zero Value columns. This will give us a cleaner data set with reduced noise.
+* Then we are removing the columns which are mostly containing "NA" values. This is achived by checking if the mean of the column is nearing 1.
+* The last step is to remove the first 5 columns with identifying data.
+
 ```{r data_analysis, echo=TRUE}
 NZV <- nearZeroVar(TrainSet)
 TrainSet <- TrainSet[, -NZV]
@@ -77,20 +82,23 @@ dim(TrainSet)
 TrainSet <- TrainSet[, -(1:5)]
 TestSet  <- TestSet[, -(1:5)]
 dim(TrainSet)
+dim(TestSet)
 #
 #corelation analysis graph
 #
 corMatrix <- cor(TrainSet[, -54])
 corrplot(corMatrix, order = "FPC", method = "color", type = "lower", 
          tl.cex = 0.8, tl.col = rgb(0, 0, 0))
-#
 ```
+
+
+The resultant data set has `r dim(TrainSet)[2]` columns only.
 
 ## Prediction Model Building
 
 Three popular methods will be applied to model the regressions (in the Train dataset) and the best one (with higher accuracy when applied to the Test dataset) will be used for the quiz predictions. 
 
-The methods are as described below.
+In this course we have gone thru the following methods.
 
 * Random Forests
 * Decision Tree and 
@@ -183,8 +191,6 @@ plot(confMatGBM$table, col = confMatGBM$byClass,
                   round(confMatGBM$overall['Accuracy'], 4)))
 ```
 
-
-##Applying the selected Model to the Test Data##
 ###The accuracy of the 3 regression modeling methods above are as follows###
 
 Prediction Model | Accuracy
@@ -193,12 +199,13 @@ Random Forest | `r round(confMatRandForest$overall['Accuracy'], 4)`
 Decision Tree | `r round(confMatDecTree$overall['Accuracy'], 4)`
 GBM           | `r round(confMatGBM$overall['Accuracy'], 4)`
 
-In that case, the __Random Forest model__ will be applied to predict the 20 quiz results __pml-testing.csv__ as shown below.
+##Applying the selected Model to the Test Data##
 
+From the table above we see that in this case the _Random Forest model_ has the most accuracy. Therefore, in this case, we will be applying the __Random Forest model__ to predict the 20 quiz results __pml-testing.csv__ as shown below.
 
 ```{r mod_pred, echo = TRUE}
 predictTEST <- predict(modFitRandForest, newdata=test_data)
 predictTEST
 ```
 
-
+**_The Prediction model behaves accurately as all the 20 predictions are correct._**
